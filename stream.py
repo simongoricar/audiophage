@@ -3,11 +3,11 @@ logging.basicConfig(level=logging.INFO)
 
 from typing import Optional
 
-from discord import Intents, Client, Interaction, Guild, VoiceChannel, VoiceClient, AudioSource
+from discord import Intents, Interaction, Guild, VoiceChannel, VoiceClient, AudioSource
 from discord.abc import GuildChannel
 from discord.enums import ChannelType
 from discord.app_commands import CommandTree
-from discord.ext.commands import Bot
+from discord.ext.commands import Bot, Context
 # noinspection PyProtectedMember
 from discord.opus import _load_default as opus_load_default, is_loaded as opus_is_loaded
 
@@ -17,8 +17,7 @@ from core.configuration import config
 log = logging.getLogger(__name__)
 
 intents = Intents.all()
-client = Bot(intents=intents)
-tree = CommandTree(client)
+client = Bot(intents=intents, command_prefix=">")
 
 opus_load_default()
 print(f"Opus is loaded: {opus_is_loaded()}")
@@ -33,6 +32,7 @@ class MicAudioSource(AudioSource):
 
         self._stream = _stream
         self._frames_per_buffer = _frames_per_buffer
+        log.info(f"MicAudioSource frames per buffer: {self._frames_per_buffer}")
 
         self._is_closed: bool = False
 
@@ -40,16 +40,15 @@ class MicAudioSource(AudioSource):
         if self._is_closed:
             return bytes(self._frames_per_buffer)
 
-        result = self._stream.read(self._frames_per_buffer)
-        print(f"Read data, is type {type(result)} and size {len(result)}")
         # noinspection PyTypeChecker
-        return result
+        return self._stream.read(self._frames_per_buffer)
 
     def is_opus(self) -> bool:
         return False
 
     def cleanup(self) -> None:
         self._is_closed = True
+        self._stream.stop_stream()
         self._stream.close()
 
 
@@ -58,32 +57,21 @@ class MicAudioSource(AudioSource):
 async def on_ready():
     log.info(f"Logged in as bot {client.user.name}#{client.user.discriminator} ({client.user.id}).")
 
-    main_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
-    log.info(f"Syncing slash commands with main guild: {main_guild}.")
-    await tree.sync(guild=main_guild)
-    log.info(f"Commands synced.")
-
 
 # Tree commands
-@tree.command(
-    name="ping",
-    description="Ping the bot."
-)
-async def cmd_ping(interaction: Interaction):
-    await interaction.response.send_message("Pong!", ephemeral=True)
+@client.command(name="ping")
+async def cmd_ping(ctx: Context):
+    await ctx.reply("Pong!")
 
 
-@tree.command(
-    name="join",
-    description="Join the voice channel and stream microphone audio."
-)
-async def cmd_join(interaction: Interaction):
-    await interaction.response.send_message("Joining.", ephemeral=True)
+@client.command(name="join")
+async def cmd_join(ctx: Context):
+    reply = await ctx.reply("Joining.")
 
     join_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
     join_voice_channel: GuildChannel = join_guild.get_channel(config.AUTO_JOIN_VOICE_CHANNEL_ID)
     if join_voice_channel.type != ChannelType.voice:
-        await interaction.response.edit_message(content="Can't join: not a voice channel!")
+        await reply.edit(content="Can't join: not a voice channel!")
         return
     join_voice_channel: VoiceChannel
 
@@ -92,23 +80,20 @@ async def cmd_join(interaction: Interaction):
 
     voice_client.play(mic)
 
-@tree.command(
-    name="leave",
-    description="Stop streaming microphone audio and leave the voice channel."
-)
-async def cmd_leave(interaction: Interaction):
+@client.command(name="leave")
+async def cmd_leave(ctx: Context):
     join_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
 
     voice_client: Optional[VoiceClient] = join_guild.voice_client
     if voice_client is None:
-        await interaction.response.send_message("Not connected.", ephemeral=True)
+        await ctx.reply("Not connected.")
     else:
-        await interaction.response.send_message("Leaving.", ephemeral=True)
+        reply = await ctx.reply("Leaving.")
 
         # noinspection PyTypeChecker
         mic_source: MicAudioSource = voice_client.source
         if mic_source is None:
-            await interaction.response.edit_message(content="Something went wrong.")
+            await reply.edit(content="Something went wrong.")
             await voice_client.disconnect(force=True)
         else:
             voice_client.stop()

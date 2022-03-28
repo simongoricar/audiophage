@@ -99,7 +99,7 @@ def open_input_device(
     return (
         audio.open(
             format=paInt16,
-            channels=1,
+            channels=2,
             rate=device.default_sample_rate,
             input=True,
             input_device_index=device.index,
