@@ -5,7 +5,7 @@ from typing import Optional, Literal
 
 from discord import Intents, Guild, VoiceChannel, VoiceClient, Client, Object, Interaction, Member, User
 from discord.abc import GuildChannel
-from discord.app_commands import CommandTree
+from discord.app_commands import CommandTree, describe
 from discord.enums import ChannelType
 
 from core.audio_input import PyAudioInputSource
@@ -60,6 +60,7 @@ def find_user_voice_channel(user: User) -> Optional[VoiceChannel]:
 async def on_ready():
     log.info(f"Logged in as bot {client.user.name}#{client.user.discriminator} ({client.user.id}).")
 
+    # Sync global and guild slash commands.
     log.info(f"Syncing global slash commands.")
     await tree.sync()
 
@@ -69,6 +70,7 @@ async def on_ready():
             log.info(f"Syncing slash commands for guild: {guild}.")
             await tree.sync(guild=guild)
 
+    # Perform an auto-join if configured to do so.
     if config.AUTO_JOIN_ENABLED:
         autojoin_channel: Optional[VoiceChannel] = await get_autojoin_voice_channel()
         if autojoin_channel is None:
@@ -110,10 +112,13 @@ async def cmd_ping(interaction: Interaction):
 
 @tree.command(
     name="join",
-    description="Join either the caller or the main (also called auto-join) channel.",
+    description="Join either the caller or the main (also called auto-join) channel and begin streaming.",
     guilds=valid_guilds,
 )
-async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
+@describe(
+    where="\"me\" - channel you're in, \"main\" - the auto-join-configured channel."
+)
+async def cmd_join(interaction: Interaction, where: Literal["me", "main"]):
     log.info(f"User {interaction.user} requested: join.")
 
     is_streaming: bool = bool(context.get("is_streaming", default=False))
@@ -124,7 +129,7 @@ async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
         return
 
     voice_channel: Optional[VoiceChannel]
-    if what == "main":
+    if where == "main":
         voice_channel = await get_autojoin_voice_channel()
         if voice_channel is None:
             await interaction.response.send_message(
@@ -132,7 +137,7 @@ async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
             )
             return
 
-    elif what == "me":
+    elif where == "me":
         voice_channel = find_user_voice_channel(interaction.user)
         if voice_channel is None:
             await interaction.response.send_message(
@@ -168,7 +173,7 @@ async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
 
 @tree.command(
     name="leave",
-    description="Leave the current voice channel.",
+    description="Stop streaming and leave the voice channel.",
     guilds=valid_guilds,
 )
 async def cmd_leave(interaction: Interaction):
