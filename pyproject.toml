@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "discordmicstream"
+version = "0.1.0"
+description = ""
+authors = ["Simon Goričar <simon.peter.goricar@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pyaudio = { file = "./wheels/PyAudio-0.2.11-cp310-cp310-win_amd64.whl" }
+tomli = "^2.0.1"
+"discord.py" = {git = "https://github.com/Rapptz/discord.py", rev = "9012c42", extras = ["voice"]}
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

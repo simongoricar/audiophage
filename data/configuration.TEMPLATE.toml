@@ -1,0 +1,12 @@
+[discord]
+token = ""
+
+[auto_join]
+enabled = true
+guild_id = 204919601895571456
+voice_channel_id = 953609117782655037
+
+[audio]
+host_api_name = "Windows WASAPI"
+input_sample_rate = 48000
+input_device_name = "Mic in at front panel (Pink) (Realtek High Definition Audio)"
