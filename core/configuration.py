@@ -13,16 +13,15 @@ class Configuration:
 
         ### Tables
         self._discord: TOMLConfig = self._config.get_table("discord", raise_on_missing_key=True)
-        self._auto_join: TOMLConfig = self._config.get_table("auto_join", raise_on_missing_key=True)
+        self._voice_channel: TOMLConfig = self._config.get_table("voice_channel", raise_on_missing_key=True)
         self._audio: TOMLConfig = self._config.get_table("audio", raise_on_missing_key=True)
 
         ## "discord" table
         self.BOT_TOKEN: str = self._discord.get("token", raise_on_missing_key=True)
 
         ## "auto_join" table
-        self.AUTO_JOIN_ENABLED: bool = bool(self._auto_join.get("enabled", fallback=False))
-        self.AUTO_JOIN_GUILD_ID: Optional[int] = self._auto_join.get("guild_id", fallback=None)
-        self.AUTO_JOIN_VOICE_CHANNEL_ID: Optional[int] = self._auto_join.get("voice_channel_id", fallback=None)
+        self.AUTO_JOIN_GUILD_ID: Optional[int] = self._voice_channel.get("guild_id", fallback=None)
+        self.AUTO_JOIN_VOICE_CHANNEL_ID: Optional[int] = self._voice_channel.get("voice_channel_id", fallback=None)
 
         ## "audio" table
         self.AUDIO_HOST_API_NAME: str = self._audio.get("host_api_name", fallback="Windows WASAPI")

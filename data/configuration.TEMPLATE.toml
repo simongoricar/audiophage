@@ -1,8 +1,7 @@
 [discord]
 token = ""
 
-[auto_join]
-enabled = true
+[voice_channel]
 guild_id = 204919601895571456
 voice_channel_id = 953609117782655037
 

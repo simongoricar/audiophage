@@ -56,6 +56,7 @@ class MicAudioSource(AudioSource):
 @client.event
 async def on_ready():
     log.info(f"Logged in as bot {client.user.name}#{client.user.discriminator} ({client.user.id}).")
+    log.info(f"Command prefix is \"{client.command_prefix}\".")
 
 
 # Tree commands
