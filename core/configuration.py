@@ -14,7 +14,7 @@ class Configuration:
         ### Tables
         self._discord: TOMLConfig = self._config.get_table("discord", raise_on_missing_key=True)
         self._auto_join: TOMLConfig = self._config.get_table("auto_join", raise_on_missing_key=True)
-        self._main_guild: TOMLConfig = self._config.get_table("main_guild", raise_on_missing_key=True)
+        self._guilds: TOMLConfig = self._config.get_table("guilds", raise_on_missing_key=True)
         self._audio: TOMLConfig = self._config.get_table("audio", raise_on_missing_key=True)
 
         ## "discord" table
@@ -25,8 +25,11 @@ class Configuration:
         self.AUTO_JOIN_GUILD_ID: Optional[int] = self._auto_join.get("guild_id", fallback=None)
         self.AUTO_JOIN_VOICE_CHANNEL_ID: Optional[int] = self._auto_join.get("voice_channel_id", fallback=None)
 
-        ## "main_guild" table
-        self.MAIN_GUILD_ID: int = self._main_guild.get("guild_id", fallback=-1)
+        ## "guilds" table
+        self.GUILD_IDS: list[int] = [
+            int(i) for i in self._guilds.get("ids", fallback=-1)
+            if i != -1
+        ]
 
         ## "audio" table
         self.AUDIO_HOST_API_NAME: str = self._audio.get("host_api_name", fallback="Windows WASAPI")

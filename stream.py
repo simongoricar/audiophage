@@ -20,7 +20,7 @@ client = Client(intents=intents)
 tree = CommandTree(client)
 context = Context()
 
-main_guild_obj: Object = Object(id=config.MAIN_GUILD_ID)
+valid_guilds: list[Object] = [Object(id=i) for i in config.GUILD_IDS]
 
 ##
 # Utilities
@@ -63,9 +63,11 @@ async def on_ready():
     log.info(f"Syncing global slash commands.")
     await tree.sync()
 
-    main_guild: Guild = client.get_guild(config.MAIN_GUILD_ID)
-    log.info(f"Syncing slash commands for main guild: {main_guild}.")
-    await tree.sync(guild=main_guild)
+    for guild_id in config.GUILD_IDS:
+        guild: Guild = client.get_guild(guild_id)
+        if guild is not None:
+            log.info(f"Syncing slash commands for guild: {guild}.")
+            await tree.sync(guild=guild)
 
     if config.AUTO_JOIN_ENABLED:
         autojoin_channel: Optional[VoiceChannel] = await get_autojoin_voice_channel()
@@ -100,7 +102,7 @@ async def on_ready():
 @tree.command(
     name="ping",
     description="Request a simple pong response from the bot to confirm it is running.",
-    guild=main_guild_obj
+    guilds=valid_guilds
 )
 async def cmd_ping(interaction: Interaction):
     await interaction.response.send_message(f"{Emoji.PING_PONG} Pong!", ephemeral=True)
@@ -109,7 +111,7 @@ async def cmd_ping(interaction: Interaction):
 @tree.command(
     name="join",
     description="Join either the caller or the main (also called auto-join) channel.",
-    guild=main_guild_obj,
+    guilds=valid_guilds,
 )
 async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
     log.info(f"User {interaction.user} requested: join.")
@@ -167,7 +169,7 @@ async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
 @tree.command(
     name="leave",
     description="Leave the current voice channel.",
-    guild=main_guild_obj,
+    guilds=valid_guilds,
 )
 async def cmd_leave(interaction: Interaction):
     log.info(f"User {interaction.user} requested: leave.")

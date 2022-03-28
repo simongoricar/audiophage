@@ -6,13 +6,13 @@ token = ""
 # Whether to auto-join the specified voice channel when the bot starts up.
 enabled = false
 # Guild the streaming voice channel resides on.
-guild_id = 204919601895571456
+guild_id = 204919679215571456
 # In the current state, Audiophage supports joining only a single channel (>join will join this specific channel).
-voice_channel_id = 953609117782655037
+voice_channel_id = 953609127782655037
 
-[main_guild]
-# Info about the guild this bot should work on.
-guild_id = 204919601895571456
+[guilds]
+# IDs of guilds this bot should work on.
+ids = [204915992239551456, 234912601815662456]
 
 [audio]
 # Use the list-audio-info.py script (or list-audio-info.exe in the packaged version)
