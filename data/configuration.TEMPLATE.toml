@@ -1,11 +1,15 @@
 [discord]
+# Discord bot token.
 token = ""
 
 [voice_channel]
+# Guild the streaming voice channel resides on.
 guild_id = 204919601895571456
+# In the current state, Audiophage supports joining only a single channel (>join will join this specific channel).
 voice_channel_id = 953609117782655037
 
 [audio]
+# Use the list-audio-info.py script (or list-audio-info.exe in the packaged version)
+# to get a list of all available audio APIs and devices on your system.
 host_api_name = "Windows WASAPI"
-input_sample_rate = 48000
 input_device_name = "Mic in at front panel (Pink) (Realtek High Definition Audio)"

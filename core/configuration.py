@@ -25,7 +25,6 @@ class Configuration:
 
         ## "audio" table
         self.AUDIO_HOST_API_NAME: str = self._audio.get("host_api_name", fallback="Windows WASAPI")
-        self.AUDIO_INPUT_SAMPLE_RATE: int = int(self._audio.get("input_sample_rate", fallback=48000))
         self.AUDIO_INPUT_DEVICE_NAME: str = self._audio.get("input_device_name", raise_on_missing_key=True)
 
     @classmethod
