@@ -67,10 +67,31 @@ async def on_ready():
     log.info(f"Syncing slash commands for main guild: {main_guild}.")
     await tree.sync(guild=main_guild)
 
-    # if config.AUTO_JOIN_ENABLED:
-    #     autojoin_channel: VoiceChannel = await get_autojoin_voice_channel()
-    #
-    #     log.info("Auto-join is enabled!")
+    if config.AUTO_JOIN_ENABLED:
+        autojoin_channel: Optional[VoiceChannel] = await get_autojoin_voice_channel()
+        if autojoin_channel is None:
+            log.warning(f"Auto-join was enabled, but can't find voice channel!")
+            return
+
+        log.info(f"Auto-join is enabled, joining {autojoin_channel}!")
+
+        voice_client: VoiceClient = await autojoin_channel.connect()
+
+        mic = PyAudioInputSource.create(
+            config.AUDIO_INPUT_DEVICE_NAME,
+            config.AUDIO_HOST_API_NAME,
+        )
+
+        if mic is None:
+            await voice_client.disconnect()
+            return
+
+        voice_client.play(mic)
+
+        context.set("is_streaming", True)
+        context.set("stream_client", voice_client)
+
+        log.info(f"Auto-join done!")
 
 
 ##

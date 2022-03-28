@@ -4,7 +4,7 @@ token = ""
 
 [auto_join]
 # Whether to auto-join the specified voice channel when the bot starts up.
-enabled = true
+enabled = false
 # Guild the streaming voice channel resides on.
 guild_id = 204919601895571456
 # In the current state, Audiophage supports joining only a single channel (>join will join this specific channel).
