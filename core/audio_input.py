@@ -1,4 +1,6 @@
 import logging
+import traceback
+from typing import Optional
 
 from discord import AudioSource
 from pyaudio import Stream
@@ -27,13 +29,19 @@ class PyAudioInputSource(AudioSource):
         """
         log.debug(f"New PyAudioInputSource: {frames_per_buffer=}.")
 
+        # A few checks to make sure we can actually use this Stream instead of just silently failing.
+        if not stream.is_active():
+            stream.start_stream()
+            if not stream.is_active():
+                raise RuntimeError("Can't start audio stream!")
+
         self._stream = stream
         self._frames_per_buffer = frames_per_buffer
 
         self._is_closed: bool = False
 
     @classmethod
-    def create(cls, device_name: str, host_api_name: str) -> "PyAudioInputSource":
+    def create(cls, device_name: str, host_api_name: str) -> Optional["PyAudioInputSource"]:
         """
         Open an input device and instantiate a new PyAudioInputSource.
 
@@ -47,14 +55,22 @@ class PyAudioInputSource(AudioSource):
             host_api_name,
         )
 
-        return cls(_stream, _frames_per_buffer)
+        try:
+            return cls(_stream, _frames_per_buffer)
+        except RuntimeError as err:
+            log.error(f"Couldn't instantiate PyAudioInputSource: {err}")
+            traceback.print_exc()
+
+            _stream.stop_stream()
+            _stream.close()
 
     def read(self) -> bytes:
         """
-        Read 20ms worth of audio.
+        Read 20ms worth of audio. The length of the bytes returned will be:
+        frames * 2 (stereo) * 2 (16 bits) = 3840
         """
         if self._is_closed:
-            return bytes(self._frames_per_buffer)
+            return bytes(self._frames_per_buffer * 2 * 2)
 
         # noinspection PyTypeChecker
         return self._stream.read(self._frames_per_buffer)
@@ -64,5 +80,9 @@ class PyAudioInputSource(AudioSource):
 
     def cleanup(self) -> None:
         self._is_closed = True
-        self._stream.stop_stream()
-        self._stream.close()
+
+        try:
+            self._stream.stop_stream()
+            self._stream.close()
+        except AttributeError:
+            pass

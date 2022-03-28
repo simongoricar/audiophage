@@ -1,20 +1,57 @@
 import logging
 logging.basicConfig(level=logging.INFO)
 
-from typing import Optional
+from typing import Optional, Literal
 
-from discord import Intents, Guild, VoiceChannel, VoiceClient
+from discord import Intents, Guild, VoiceChannel, VoiceClient, Client, Object, Interaction, Member, User
 from discord.abc import GuildChannel
+from discord.app_commands import CommandTree
 from discord.enums import ChannelType
-from discord.ext.commands import Bot, Context
 
 from core.audio_input import PyAudioInputSource
 from core.configuration import config
+from core.emojis import Emoji
+from core.context import Context
 
 log = logging.getLogger(__name__)
 
 intents = Intents.all()
-client = Bot(intents=intents, command_prefix=">")
+client = Client(intents=intents)
+tree = CommandTree(client)
+context = Context()
+
+main_guild_obj: Object = Object(id=config.MAIN_GUILD_ID)
+
+##
+# Utilities
+##
+async def get_autojoin_voice_channel() -> Optional[VoiceChannel]:
+    """
+    Get the auto-join VoiceChannel based on the configuration.
+    """
+    autojoin_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
+
+    join_voice_channel: GuildChannel = autojoin_guild.get_channel(config.AUTO_JOIN_VOICE_CHANNEL_ID)
+    if join_voice_channel.type != ChannelType.voice:
+        return None
+
+    join_voice_channel: VoiceChannel
+    return join_voice_channel
+
+def find_user_voice_channel(user: User) -> Optional[VoiceChannel]:
+    mutual_guilds: list[Guild] = user.mutual_guilds
+
+    for guild in mutual_guilds:
+        member: Member = guild.get_member(user.id)
+        if member.voice is not None and member.voice.channel is not None:
+            if member.voice.channel.type == ChannelType.voice:
+                return member.voice.channel
+            else:
+                # Could be a stage channel, which doesn't qualify.
+                return None
+
+    return None
+
 
 ##
 # Event listeners
@@ -22,59 +59,134 @@ client = Bot(intents=intents, command_prefix=">")
 @client.event
 async def on_ready():
     log.info(f"Logged in as bot {client.user.name}#{client.user.discriminator} ({client.user.id}).")
-    log.info(f"Bot command prefix is \"{client.command_prefix}\".")
+
+    log.info(f"Syncing global slash commands.")
+    await tree.sync()
+
+    main_guild: Guild = client.get_guild(config.MAIN_GUILD_ID)
+    log.info(f"Syncing slash commands for main guild: {main_guild}.")
+    await tree.sync(guild=main_guild)
+
+    # if config.AUTO_JOIN_ENABLED:
+    #     autojoin_channel: VoiceChannel = await get_autojoin_voice_channel()
+    #
+    #     log.info("Auto-join is enabled!")
 
 
 ##
 # Bot commands
 ##
-@client.command(name="ping")
-async def cmd_ping(ctx: Context):
-    await ctx.reply("Pong!")
+@tree.command(
+    name="ping",
+    description="Request a simple pong response from the bot to confirm it is running.",
+    guild=main_guild_obj
+)
+async def cmd_ping(interaction: Interaction):
+    await interaction.response.send_message(f"{Emoji.PING_PONG} Pong!", ephemeral=True)
 
 
-@client.command(name="join")
-async def cmd_join(ctx: Context):
-    log.info(f"User {ctx.author} requested: join.")
+@tree.command(
+    name="join",
+    description="Join either the caller or the main (also called auto-join) channel.",
+    guild=main_guild_obj,
+)
+async def cmd_join(interaction: Interaction, what: Literal["me", "main"]):
+    log.info(f"User {interaction.user} requested: join.")
 
-    reply = await ctx.reply("Joining.")
-
-    join_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
-    join_voice_channel: GuildChannel = join_guild.get_channel(config.AUTO_JOIN_VOICE_CHANNEL_ID)
-    if join_voice_channel.type != ChannelType.voice:
-        await reply.edit(content="Can't join: not a voice channel!")
+    is_streaming: bool = bool(context.get("is_streaming", default=False))
+    if is_streaming:
+        await interaction.response.send_message(
+            f"{Emoji.WARNING} Can't join: already streaming."
+        )
         return
-    join_voice_channel: VoiceChannel
 
-    voice_client: VoiceClient = await join_voice_channel.connect()
+    voice_channel: Optional[VoiceChannel]
+    if what == "main":
+        voice_channel = await get_autojoin_voice_channel()
+        if voice_channel is None:
+            await interaction.response.send_message(
+                f"{Emoji.WARNING} Can't join auto-join channel: not a voice channel!", ephemeral=True
+            )
+            return
+
+    elif what == "me":
+        voice_channel = find_user_voice_channel(interaction.user)
+        if voice_channel is None:
+            await interaction.response.send_message(
+                f"{Emoji.WARNING} Can't join: you're not in a voice channel!", ephemeral=True
+            )
+            return
+
+    else:
+        await interaction.response.send_message(
+           f"{Emoji.WARNING} Not a valid argument (expected either `me` or `main`)!", ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        f"{Emoji.POSTAL_HORN} Joining voice channel: {voice_channel.mention}.", ephemeral=True
+    )
+    voice_client: VoiceClient = await voice_channel.connect()
+
     mic = PyAudioInputSource.create(
         config.AUDIO_INPUT_DEVICE_NAME,
         config.AUDIO_HOST_API_NAME,
     )
+    if mic is None:
+        await interaction.response.edit_message(content=f"{Emoji.EYES} Can't open audio input stream!")
+        await voice_client.disconnect()
+        return
 
     voice_client.play(mic)
 
-@client.command(name="leave")
-async def cmd_leave(ctx: Context):
-    log.info(f"User {ctx.author} requested: leave.")
+    context.set("is_streaming", True)
+    context.set("stream_client", voice_client)
 
-    join_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
 
-    voice_client: Optional[VoiceClient] = join_guild.voice_client
-    if voice_client is None:
-        await ctx.reply("Not connected.")
-    else:
-        reply = await ctx.reply("Leaving.")
+@tree.command(
+    name="leave",
+    description="Leave the current voice channel.",
+    guild=main_guild_obj,
+)
+async def cmd_leave(interaction: Interaction):
+    log.info(f"User {interaction.user} requested: leave.")
 
-        # noinspection PyTypeChecker
-        mic_source: PyAudioInputSource = voice_client.source
-        if mic_source is None:
-            await reply.edit(content="Something went wrong.")
-            await voice_client.disconnect(force=True)
-        else:
-            voice_client.stop()
-            await voice_client.disconnect()
-            mic_source.cleanup()
+    def reset_streaming():
+        context.set("is_streaming", False)
+        context.set("stream_client", None)
+
+    is_streaming: bool = bool(context.get("is_streaming", default=False))
+    if not is_streaming:
+        await interaction.response.send_message(f"{Emoji.WARNING} Can't leave: not connected.", ephemeral=True)
+        reset_streaming()
+        return
+
+    voice_client: Optional[VoiceClient] = context.get("stream_client", default=None)
+    if not voice_client:
+        await interaction.response.send_message(f"{Emoji.EYES} You just found an edge case! "
+                                                f"Streaming somewhere, but voice client is None!")
+        reset_streaming()
+        return
+
+    # noinspection PyTypeChecker
+    mic_source: PyAudioInputSource = voice_client.source
+    if not isinstance(mic_source, PyAudioInputSource):
+        await interaction.response.send_message(f"{Emoji.EYES} You just found an edge case! "
+                                                f"VoiceClient source is not a PyAudioInputSource for some reason! "
+                                                f"Forcing disconnect, this is a bug.")
+        await voice_client.disconnect(force=True)
+        reset_streaming()
+        return
+
+    # Normal disconnect.
+    await interaction.response.send_message(
+        f"{Emoji.WAVE} Leaving {voice_client.channel.mention}.", ephemeral=True
+    )
+
+    voice_client.stop()
+    await voice_client.disconnect()
+
+    reset_streaming()
 
 
 def main():
