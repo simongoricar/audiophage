@@ -81,7 +81,7 @@ def ensure_opus():
         opus_dll_path = (BASE_DIR / "libs/libopus-0.x64.dll").resolve()
         load_opus(str(opus_dll_path))
 
-    print(f"Opus is loaded: {opus_is_loaded()}")
+    log.info(f"Opus is loaded: {opus_is_loaded()}")
 
 
 def setup():

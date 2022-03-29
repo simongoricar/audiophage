@@ -1,13 +1,16 @@
 import logging
+
+from core.utilities import clamp
+
 logging.basicConfig(level=logging.INFO)
 
 import traceback
 from typing import Optional, Literal
 
 from discord import Intents, Guild, VoiceChannel, VoiceClient, \
-    Client, Object, Interaction, Member, User
+    Client, Object, Interaction, Member, User, AudioSource, PCMVolumeTransformer
 from discord.abc import GuildChannel
-from discord.app_commands import CommandTree, describe, check
+from discord.app_commands import CommandTree, describe, check, Range
 from discord.enums import ChannelType
 
 from core.audio import ensure_opus
@@ -79,10 +82,11 @@ async def connect_and_stream(voice_channel: VoiceChannel) -> VoiceClient:
         config.AUDIO_INPUT_DEVICE_NAME,
         config.AUDIO_HOST_API_NAME,
     )
+    volume_source = PCMVolumeTransformer(input_source, config.INITIAL_VOLUME)
 
     voice_client: VoiceClient = await voice_channel.connect()
 
-    voice_client.play(input_source)
+    voice_client.play(volume_source)
     state.set_stream_started(voice_client)
 
     return voice_client
@@ -160,7 +164,7 @@ async def on_ready():
 ##
 @tree.command(
     name="ping",
-    description="Request a simple pong response from the bot to confirm it is running.",
+    description="Request a simple pong response from the bot to confirm it is running and functional.",
     guilds=valid_guilds
 )
 async def cmd_ping(interaction: Interaction):
@@ -174,7 +178,7 @@ async def cmd_ping(interaction: Interaction):
     guilds=valid_guilds,
 )
 @describe(
-    where="\"me\" - voice channel you're currently in, \"primary\" - the auto-join-configured channel."
+    where="\"me\" - voice channel you're currently in; \"primary\" - the auto-join-configured channel."
 )
 @check(is_whitelisted_user)
 async def cmd_join(interaction: Interaction, where: Literal["me", "primary"]):
@@ -184,7 +188,8 @@ async def cmd_join(interaction: Interaction, where: Literal["me", "primary"]):
     if already_streaming:
         log.info("Can't join: already streaming somewhere else.")
         await interaction.response.send_message(
-            f"{Emoji.WARNING} Can't join: already streaming somewhere else - only a single stream is supported."
+            f"{Emoji.WARNING} Can't join: already streaming somewhere else - only a single stream is supported.",
+            ephemeral=True
         )
         return
 
@@ -209,7 +214,7 @@ async def cmd_join(interaction: Interaction, where: Literal["me", "primary"]):
 
     else:
         await interaction.response.send_message(
-            f"{Emoji.WARNING} Not a valid argument (expected either `me` or `main`)!",
+            f"{Emoji.WARNING} Not a valid argument (expected either `me` or `primary`)!",
             ephemeral=True
         )
         return
@@ -217,8 +222,10 @@ async def cmd_join(interaction: Interaction, where: Literal["me", "primary"]):
     try:
         await connect_and_stream(voice_channel)
         log.info(f"Voice channel joined and streaming: {voice_channel} ({voice_channel.id}).")
-        await interaction.response.send_message(f"{Emoji.POSTAL_HORN} Joined voice channel: {voice_channel.mention}.",
-                                                ephemeral=True)
+        await interaction.response.send_message(
+            f"{Emoji.POSTAL_HORN} Joined voice channel: {voice_channel.mention} (volume: `{config.INITIAL_VOLUME}`).",
+            ephemeral=True
+        )
 
     except AudioException as err:
         log.error(f"Couldn't join voice channel, audio error: {err}")
@@ -254,6 +261,40 @@ async def cmd_leave(interaction: Interaction):
         await interaction.response.send_message(
             f"{Emoji.WAVE} Leaving {voice_channel.mention}.", ephemeral=True
         )
+
+
+@tree.command(
+    name="volume",
+    description="Set the volume of the audio stream.",
+    guilds=valid_guilds
+)
+@describe(
+    volume="0 means silent, 1 means original volume, 2 means twice the volume. Can be anywhere in between."
+)
+@check(is_whitelisted_user)
+async def cmd_volume(interaction: Interaction, volume: Range[float, 0, 2]):
+    log.info(f"User {interaction.user} requested: set volume to {volume}")
+
+    voice_client: Optional[VoiceClient] = state.stream
+    if voice_client is None:
+        log.info("Can't set volume: not connected.")
+        await interaction.response.send_message(f"{Emoji.WARNING} Can't set volume: not connected.",
+                                                ephemeral=True)
+        return
+
+    source: AudioSource = voice_client.source
+    if not isinstance(source, PCMVolumeTransformer):
+        log.error("Can't change volume: source is not a PCMVolumeTransformer!")
+        await interaction.response.send_message(f"{Emoji.EYES} Can't change volume: "
+                                                f"not a PCMVolumeTransformer (this is a bug)!",
+                                                ephemeral=True)
+        return
+    source: PCMVolumeTransformer
+
+    volume: float = float(volume)
+    source.volume = clamp(volume, 0, 2)
+
+    await interaction.response.send_message(f"{Emoji.OK} Volume set to `{volume}`.", ephemeral=True)
 
 
 def main():

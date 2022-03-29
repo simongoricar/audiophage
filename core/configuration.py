@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Union, Optional
 
 from .configuration_base import TOMLConfig, DATA_DIR
+from .utilities import clamp
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class Configuration:
         ## "audio" table
         self.AUDIO_HOST_API_NAME: str = self._audio.get("host_api_name", fallback="Windows WASAPI")
         self.AUDIO_INPUT_DEVICE_NAME: str = self._audio.get("input_device_name", raise_on_missing_key=True)
+        self.INITIAL_VOLUME: float = clamp(float(self._audio.get("initial_volume", fallback=1.0)), 0, 2)
 
     @classmethod
     def from_file_path(cls, configuration_filepath: Union[str, Path]) -> "Configuration":

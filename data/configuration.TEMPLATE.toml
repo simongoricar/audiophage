@@ -33,3 +33,6 @@ guild_ids = [204915992239551456, 234912601815662456]
 # to get a list of all available audio APIs and devices on your system.
 host_api_name = "Windows WASAPI"
 input_device_name = "Mic in at front panel (Pink) (Realtek High Definition Audio)"
+
+# Initial volume of the audio stream (0 to 2, where 1 is the normal volume).
+initial_volume = 1.0
