@@ -14,7 +14,7 @@ class Configuration:
         ### Tables
         self._discord: TOMLConfig = self._config.get_table("discord", raise_on_missing_key=True)
         self._auto_join: TOMLConfig = self._config.get_table("auto_join", raise_on_missing_key=True)
-        self._guilds: TOMLConfig = self._config.get_table("guilds", raise_on_missing_key=True)
+        self._permissions: TOMLConfig = self._config.get_table("permissions", raise_on_missing_key=True)
         self._audio: TOMLConfig = self._config.get_table("audio", raise_on_missing_key=True)
 
         ## "discord" table
@@ -25,9 +25,12 @@ class Configuration:
         self.AUTO_JOIN_GUILD_ID: Optional[int] = self._auto_join.get("guild_id", fallback=None)
         self.AUTO_JOIN_VOICE_CHANNEL_ID: Optional[int] = self._auto_join.get("voice_channel_id", fallback=None)
 
-        ## "guilds" table
+        ## "permissions" table
+        self.USER_IDS: list[int] = [
+            int(i) for i in self._permissions.get("user_ids", fallback=[])
+        ]
         self.GUILD_IDS: list[int] = [
-            int(i) for i in self._guilds.get("ids", fallback=-1)
+            int(i) for i in self._permissions.get("guild_ids", fallback=[])
             if i != -1
         ]
 

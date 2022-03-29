@@ -1,33 +1,47 @@
 import logging
 logging.basicConfig(level=logging.INFO)
 
+import traceback
 from typing import Optional, Literal
 
-from discord import Intents, Guild, VoiceChannel, VoiceClient, Client, Object, Interaction, Member, User
+from discord import Intents, Guild, VoiceChannel, VoiceClient, \
+    Client, Object, Interaction, Member, User
 from discord.abc import GuildChannel
-from discord.app_commands import CommandTree, describe
+from discord.app_commands import CommandTree, describe, check
 from discord.enums import ChannelType
 
 from core.audio_input import PyAudioInputSource
 from core.configuration import config
 from core.emojis import Emoji
-from core.context import Context
+from core.state import AudiophageState
+from core.exceptions import NotConnected, AudioException, NoSuchAudioDevice
 
 log = logging.getLogger(__name__)
 
 intents = Intents.all()
 client = Client(intents=intents)
 tree = CommandTree(client)
-context = Context()
+state = AudiophageState()
 
+if len(config.GUILD_IDS) == 0:
+    log.error("The configuration value permissions.guild_ids does not contain any guild IDs. "
+              "This effectively means the bot will work nowhere. Please add at least one guild "
+              "you want to use the bot on in configuration.toml.")
 valid_guilds: list[Object] = [Object(id=i) for i in config.GUILD_IDS]
+
+if len(config.USER_IDS) == 0:
+    log.error("The configuration value permissions.user_ids does not contain any user IDs. "
+              "This effectively means the bot will not respond to anyone. Please add at least one "
+              "user you want to operate the bot.")
+
 
 ##
 # Utilities
 ##
-async def get_autojoin_voice_channel() -> Optional[VoiceChannel]:
+async def get_primary_voice_channel() -> Optional[VoiceChannel]:
     """
-    Get the auto-join VoiceChannel based on the configuration.
+    Get the primary (auto-joinable) VoiceChannel based on the configuration
+    (see subtable "auto_join" in configuration.toml).
     """
     autojoin_guild: Guild = client.get_guild(config.AUTO_JOIN_GUILD_ID)
 
@@ -52,6 +66,52 @@ def find_user_voice_channel(user: User) -> Optional[VoiceChannel]:
 
     return None
 
+async def connect_and_stream(voice_channel: VoiceChannel) -> VoiceClient:
+    """
+    Connect to a VoiceChannel and start streaming the configured input device.
+
+    :param voice_channel: VoiceChannel to connect and stream to.
+    :return: VoiceClient
+    """
+    input_source = PyAudioInputSource.create(
+        config.AUDIO_INPUT_DEVICE_NAME,
+        config.AUDIO_HOST_API_NAME,
+    )
+
+    voice_client: VoiceClient = await voice_channel.connect()
+
+    voice_client.play(input_source)
+    state.set_stream_started(voice_client)
+
+    return voice_client
+
+async def stop_stream_and_disconnect() -> VoiceChannel:
+    """
+    Disconnect from the current audio stream (if connected) and leave the voice channel.
+
+    :return: VoiceChannel we just disconnected from.
+    """
+    voice_client: Optional[VoiceClient] = state.stream
+    if voice_client is None:
+        raise NotConnected()
+
+    voice_channel: VoiceChannel = voice_client.channel
+
+    voice_client.stop()
+    await voice_client.disconnect()
+
+    state.set_stream_ended()
+
+    return voice_channel
+
+
+def is_whitelisted_user(interaction: Interaction):
+    """
+    A callback to check whether the user that initiated the Interaction is whitelisted.
+    """
+    user: User = interaction.user
+    return user.id in config.USER_IDS
+
 
 ##
 # Event listeners
@@ -67,35 +127,30 @@ async def on_ready():
     for guild_id in config.GUILD_IDS:
         guild: Guild = client.get_guild(guild_id)
         if guild is not None:
-            log.info(f"Syncing slash commands for guild: {guild}.")
+            log.info(f"Syncing slash commands for guild: {guild.name} ({guild.id}).")
             await tree.sync(guild=guild)
+
+    # List whitelisted user info
+    whitelisted_users: list[User] = [client.get_user(i) for i in config.USER_IDS]
+    whitelisted_names: list[str] = [f"{u.name}#{u.discriminator}:{u.id}" for u in whitelisted_users if u is not None]
+    log.info(f"Whitelisted users: {', '.join(whitelisted_names)}")
 
     # Perform an auto-join if configured to do so.
     if config.AUTO_JOIN_ENABLED:
-        autojoin_channel: Optional[VoiceChannel] = await get_autojoin_voice_channel()
-        if autojoin_channel is None:
+        primary_voice: Optional[VoiceChannel] = await get_primary_voice_channel()
+        if primary_voice is None:
             log.warning(f"Auto-join was enabled, but can't find voice channel!")
             return
 
-        log.info(f"Auto-join is enabled, joining {autojoin_channel}!")
+        log.info(f"Auto-join is enabled! Joining {primary_voice}!")
 
-        voice_client: VoiceClient = await autojoin_channel.connect()
+        try:
+            await connect_and_stream(primary_voice)
+        except AudioException as err:
+            log.error(f"Couldn't auto-join, audio error: {err}")
+            traceback.print_exc()
 
-        mic = PyAudioInputSource.create(
-            config.AUDIO_INPUT_DEVICE_NAME,
-            config.AUDIO_HOST_API_NAME,
-        )
-
-        if mic is None:
-            await voice_client.disconnect()
-            return
-
-        voice_client.play(mic)
-
-        context.set("is_streaming", True)
-        context.set("stream_client", voice_client)
-
-        log.info(f"Auto-join done!")
+        log.info(f"Auto-joined!")
 
 
 ##
@@ -116,59 +171,63 @@ async def cmd_ping(interaction: Interaction):
     guilds=valid_guilds,
 )
 @describe(
-    where="\"me\" - channel you're in, \"main\" - the auto-join-configured channel."
+    where="\"me\" - voice channel you're currently in, \"primary\" - the auto-join-configured channel."
 )
-async def cmd_join(interaction: Interaction, where: Literal["me", "main"]):
+@check(is_whitelisted_user)
+async def cmd_join(interaction: Interaction, where: Literal["me", "primary"]):
     log.info(f"User {interaction.user} requested: join.")
 
-    is_streaming: bool = bool(context.get("is_streaming", default=False))
-    if is_streaming:
+    already_streaming: bool = state.stream is not None
+    if already_streaming:
+        log.info("Can't join: already streaming somewhere else.")
         await interaction.response.send_message(
-            f"{Emoji.WARNING} Can't join: already streaming."
+            f"{Emoji.WARNING} Can't join: already streaming somewhere else - only a single stream is supported."
         )
         return
 
     voice_channel: Optional[VoiceChannel]
-    if where == "main":
-        voice_channel = await get_autojoin_voice_channel()
+    if where == "primary":
+        voice_channel = await get_primary_voice_channel()
         if voice_channel is None:
+            log.info("Can't join primary channel: not a voice channel!")
             await interaction.response.send_message(
-                f"{Emoji.WARNING} Can't join auto-join channel: not a voice channel!", ephemeral=True
+                f"{Emoji.WARNING} Can't join primary channel: not a voice channel!",
+                ephemeral=True
             )
             return
 
     elif where == "me":
         voice_channel = find_user_voice_channel(interaction.user)
         if voice_channel is None:
-            await interaction.response.send_message(
-                f"{Emoji.WARNING} Can't join: you're not in a voice channel!", ephemeral=True
-            )
+            log.info(f"Can't join {interaction.user}, not in a voice channel.")
+            await interaction.response.send_message(f"{Emoji.WARNING} Can't join: you're not in any voice channel!",
+                                                    ephemeral=True)
             return
 
     else:
         await interaction.response.send_message(
-           f"{Emoji.WARNING} Not a valid argument (expected either `me` or `main`)!", ephemeral=True
+            f"{Emoji.WARNING} Not a valid argument (expected either `me` or `main`)!",
+            ephemeral=True
         )
         return
 
-    await interaction.response.send_message(
-        f"{Emoji.POSTAL_HORN} Joining voice channel: {voice_channel.mention}.", ephemeral=True
-    )
-    voice_client: VoiceClient = await voice_channel.connect()
+    try:
+        await connect_and_stream(voice_channel)
+        log.info(f"Voice channel joined and streaming: {voice_channel} ({voice_channel.id}).")
+        await interaction.response.send_message(f"{Emoji.POSTAL_HORN} Joined voice channel: {voice_channel.mention}.",
+                                                ephemeral=True)
 
-    mic = PyAudioInputSource.create(
-        config.AUDIO_INPUT_DEVICE_NAME,
-        config.AUDIO_HOST_API_NAME,
-    )
-    if mic is None:
-        await interaction.response.edit_message(content=f"{Emoji.EYES} Can't open audio input stream!")
-        await voice_client.disconnect()
-        return
+    except AudioException as err:
+        log.error(f"Couldn't join voice channel, audio error: {err}")
+        traceback.print_exc()
+        await interaction.response.send_message(content=f"{Emoji.EYES} Error while opening input audio stream!",
+                                                ephemeral=True)
 
-    voice_client.play(mic)
-
-    context.set("is_streaming", True)
-    context.set("stream_client", voice_client)
+    except NoSuchAudioDevice:
+        log.error("Couldn't open stream: the configured audio device does not exist.")
+        await interaction.response.send_message(content=f"{Emoji.EYES} The configured audio input device does not exist"
+                                                        f" (disconnected or otherwise unavailable)!",
+                                                ephemeral=True)
 
 
 @tree.command(
@@ -176,45 +235,22 @@ async def cmd_join(interaction: Interaction, where: Literal["me", "main"]):
     description="Stop streaming and leave the voice channel.",
     guilds=valid_guilds,
 )
+@check(is_whitelisted_user)
 async def cmd_leave(interaction: Interaction):
     log.info(f"User {interaction.user} requested: leave.")
 
-    def reset_streaming():
-        context.set("is_streaming", False)
-        context.set("stream_client", None)
+    try:
+        voice_channel: VoiceChannel = await stop_stream_and_disconnect()
 
-    is_streaming: bool = bool(context.get("is_streaming", default=False))
-    if not is_streaming:
+    except NotConnected:
+        log.info("Can't leave: not connected.")
         await interaction.response.send_message(f"{Emoji.WARNING} Can't leave: not connected.", ephemeral=True)
-        reset_streaming()
-        return
 
-    voice_client: Optional[VoiceClient] = context.get("stream_client", default=None)
-    if not voice_client:
-        await interaction.response.send_message(f"{Emoji.EYES} You just found an edge case! "
-                                                f"Streaming somewhere, but voice client is None!")
-        reset_streaming()
-        return
-
-    # noinspection PyTypeChecker
-    mic_source: PyAudioInputSource = voice_client.source
-    if not isinstance(mic_source, PyAudioInputSource):
-        await interaction.response.send_message(f"{Emoji.EYES} You just found an edge case! "
-                                                f"VoiceClient source is not a PyAudioInputSource for some reason! "
-                                                f"Forcing disconnect, this is a bug.")
-        await voice_client.disconnect(force=True)
-        reset_streaming()
-        return
-
-    # Normal disconnect.
-    await interaction.response.send_message(
-        f"{Emoji.WAVE} Leaving {voice_client.channel.mention}.", ephemeral=True
-    )
-
-    voice_client.stop()
-    await voice_client.disconnect()
-
-    reset_streaming()
+    else:
+        log.info(f"Stopped streaming and left {voice_channel.name} ({voice_channel.id}).")
+        await interaction.response.send_message(
+            f"{Emoji.WAVE} Leaving {voice_channel.mention}.", ephemeral=True
+        )
 
 
 def main():

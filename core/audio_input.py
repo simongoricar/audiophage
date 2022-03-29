@@ -6,6 +6,7 @@ from discord import AudioSource
 from pyaudio import Stream
 
 from .audio import open_input_device
+from .exceptions import AudioException
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class PyAudioInputSource(AudioSource):
         if not stream.is_active():
             stream.start_stream()
             if not stream.is_active():
-                raise RuntimeError("Can't start audio stream!")
+                raise AudioException("Can't start audio stream!")
 
         self._stream = stream
         self._frames_per_buffer = frames_per_buffer
@@ -41,7 +42,7 @@ class PyAudioInputSource(AudioSource):
         self._is_closed: bool = False
 
     @classmethod
-    def create(cls, device_name: str, host_api_name: str) -> Optional["PyAudioInputSource"]:
+    def create(cls, device_name: str, host_api_name: str) -> "PyAudioInputSource":
         """
         Open an input device and instantiate a new PyAudioInputSource.
 
@@ -57,12 +58,13 @@ class PyAudioInputSource(AudioSource):
 
         try:
             return cls(_stream, _frames_per_buffer)
-        except RuntimeError as err:
+        except AudioException as err:
             log.error(f"Couldn't instantiate PyAudioInputSource: {err}")
-            traceback.print_exc()
 
             _stream.stop_stream()
             _stream.close()
+
+            raise
 
     def read(self) -> bytes:
         """

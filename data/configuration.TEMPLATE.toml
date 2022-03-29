@@ -1,8 +1,15 @@
 [discord]
 # Discord bot token.
+# Get one from https://discord.com/developers/applications.
 token = ""
 
 [auto_join]
+###
+## Auto-join settings
+# In this section you can configure a single channel that will be known as the primary channel.
+# If auto-join is enabled, the bot will join this channel upon starting.
+# Even if auto-join is disabled, you can make the bot join the associated voice channel on demand with the command "/join primary".
+###
 # Whether to auto-join the specified voice channel when the bot starts up.
 enabled = false
 # Guild the streaming voice channel resides on.
@@ -10,9 +17,16 @@ guild_id = 204919679215571456
 # In the current state, Audiophage supports joining only a single channel (>join will join this specific channel).
 voice_channel_id = 953609127782655037
 
-[guilds]
+[permissions]
+###
+## Permissions
+# For better security, you should set a list of users and a list of guilds you expect to use this bot on.
+###
+# IDs of users that are allowed to operate the bot.
+user_ids = [125297504827736064]
 # IDs of guilds this bot should work on.
-ids = [204915992239551456, 234912601815662456]
+guild_ids = [204915992239551456, 234912601815662456]
+
 
 [audio]
 # Use the list-audio-info.py script (or list-audio-info.exe in the packaged version)

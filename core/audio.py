@@ -9,6 +9,9 @@ from discord.opus import _load_default as opus_load_default, is_loaded as opus_i
 
 
 # Dataclasses to store PyAudio information in.
+from core.exceptions import NoSuchAudioDevice
+
+
 @dataclass()
 class PyAudioHostAPI:
     index: int
@@ -50,7 +53,7 @@ def open_input_device(
         if d.name == device_name and d.default_sample_rate == with_sample_rate and d.host_api.name == with_host_api_name
     ]
     if len(matching_devices) < 1:
-        raise KeyError("No device with such name.")
+        raise NoSuchAudioDevice("No device with such name.")
 
     device: PyAudioDevice = matching_devices[0]
 
@@ -70,15 +73,22 @@ def open_input_device(
 
 
 def ensure_opus():
+    """
+    This helper function attempts to load the default opus library (if installed),
+    falling back to "libs/opus.dll" if the first attempt fails (especially useful in packaged versions of the bot).
+    """
     opus_load_default()
+
     if not opus_is_loaded():
         opus_dll_path = (Path(os.path.dirname(__file__)) / "libs/opus.dll").resolve()
         load_opus(str(opus_dll_path))
+
     print(f"Opus is loaded: {opus_is_loaded()}")
+
 
 def setup():
     """
-    This function caches the host audio APIs and devices.
+    This function gets and caches the host audio APIs and devices.
     """
     global host_api_index_to_name
     global device_index_to_device
