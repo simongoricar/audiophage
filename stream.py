@@ -10,6 +10,7 @@ from discord.abc import GuildChannel
 from discord.app_commands import CommandTree, describe, check
 from discord.enums import ChannelType
 
+from core.audio import ensure_opus
 from core.audio_input import PyAudioInputSource
 from core.configuration import config
 from core.emojis import Emoji
@@ -34,6 +35,7 @@ if len(config.USER_IDS) == 0:
               "This effectively means the bot will not respond to anyone. Please add at least one "
               "user you want to operate the bot.")
 
+ensure_opus()
 
 ##
 # Utilities
