@@ -162,6 +162,7 @@ async def on_ready():
     guilds=valid_guilds
 )
 async def cmd_ping(interaction: Interaction):
+    log.info(f"User {interaction.user} requested: ping")
     await interaction.response.send_message(f"{Emoji.PING_PONG} Pong!", ephemeral=True)
 
 

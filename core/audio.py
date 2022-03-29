@@ -80,7 +80,7 @@ def ensure_opus():
     opus_load_default()
 
     if not opus_is_loaded():
-        opus_dll_path = (Path(os.path.dirname(__file__)) / "libs/opus.dll").resolve()
+        opus_dll_path = (Path(os.path.dirname(__file__)) / "libs/libopus-0.x64.dll").resolve()
         load_opus(str(opus_dll_path))
 
     print(f"Opus is loaded: {opus_is_loaded()}")
