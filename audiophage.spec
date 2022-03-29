@@ -43,7 +43,6 @@ stream_a = Analysis(['stream.py'],
                     ],
                     datas=[
                         ("data/configuration.TEMPLATE.toml", "data"),
-                        # ("libs/*.dll", "libs"),
                     ],
                     hiddenimports=[
                         # "nacl",

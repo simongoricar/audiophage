@@ -1,17 +1,15 @@
 import logging
-import os.path
-from pathlib import Path
 from dataclasses import dataclass
 
 from pyaudio import PyAudio, Stream, paInt16
 # noinspection PyProtectedMember
 from discord.opus import _load_default as opus_load_default, is_loaded as opus_is_loaded, load_opus
 
-
-# Dataclasses to store PyAudio information in.
+from core.configuration_base import BASE_DIR
 from core.exceptions import NoSuchAudioDevice
 
 
+# Dataclasses to store PyAudio information in.
 @dataclass()
 class PyAudioHostAPI:
     index: int
@@ -80,7 +78,7 @@ def ensure_opus():
     opus_load_default()
 
     if not opus_is_loaded():
-        opus_dll_path = (Path(os.path.dirname(__file__)) / "libs/libopus-0.x64.dll").resolve()
+        opus_dll_path = (BASE_DIR / "libs/libopus-0.x64.dll").resolve()
         load_opus(str(opus_dll_path))
 
     print(f"Opus is loaded: {opus_is_loaded()}")
