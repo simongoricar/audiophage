@@ -10,17 +10,17 @@ from core.exceptions import NoSuchAudioDevice
 
 
 # Dataclasses to store PyAudio information in.
-@dataclass()
+@dataclass(eq=True, frozen=True, order=True)
 class PyAudioHostAPI:
-    index: int
     name: str
+    index: int
     device_count: int
 
 
-@dataclass()
+@dataclass(eq=True, frozen=True, order=True)
 class PyAudioDevice:
-    index: int
     name: str
+    index: int
     host_api: PyAudioHostAPI
     default_sample_rate: int
 
