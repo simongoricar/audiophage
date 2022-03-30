@@ -46,8 +46,8 @@ class PyAudioInputSource(AudioSource):
         """
         Open an input device and instantiate a new PyAudioInputSource.
 
-        :param device_name: Device to open by name (see list-audio-info.py for available APIs and devices).
-        :param host_api_name: Host audio API to use by name (see list-audio-info.py for available APIs and devices).
+        :param device_name: Device to open by name (see list-audio-devices.py for available APIs and devices).
+        :param host_api_name: Host audio API to use by name (see list-audio-devices.py for available APIs and devices).
         :return: PyAudioInputSource instance that can be passed over to VoiceClient.play.
         """
         _stream, _frames_per_buffer = open_input_device(

@@ -34,7 +34,7 @@ guild_ids = [204915992239551456, 234912601815662456]
 [audio]
 ###
 ## Audio settings
-# Use the list-audio-info.py script (or list-audio-info.exe in the packaged version)
+# Use the list-audio-devices.py script (or list-audio-info.exe in the packaged version)
 # to get a list of all available audio APIs and devices on your system.
 ###
 # Host API name

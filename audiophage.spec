@@ -3,7 +3,7 @@
 block_cipher = None
 
 # Device lister
-listdevices_a = Analysis(['list-audio-info.py'],
+listdevices_a = Analysis(['list-audio-devices.py'],
                          pathex=[],
                          binaries=[],
                          datas=[],
@@ -24,7 +24,7 @@ listdevices_exe = EXE(listdevices_pyz,
                       listdevices_a.scripts,
                       [],
                       exclude_binaries=True,
-                      name='list-audio-info',
+                      name='list-audio-devices',
                       debug=False,
                       bootloader_ignore_signals=False,
                       strip=False,

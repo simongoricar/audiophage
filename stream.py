@@ -20,7 +20,7 @@ from core.emojis import Emoji
 from core.state import AudiophageState
 from core.exceptions import NotConnected, AudioException, NoSuchAudioDevice
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("audiophage")
 
 intents = Intents.all()
 client = Client(intents=intents)

@@ -83,7 +83,7 @@ unicode_backport = ["unicodedata2"]
 
 [[package]]
 name = "discord.py"
-version = "2.0.0a3980+g9012c424"
+version = "2.0.0a3989+ge5153780"
 description = "A Python wrapper for the Discord API"
 category = "main"
 optional = false
@@ -102,9 +102,9 @@ voice = ["PyNaCl (>=1.3.0,<1.6)"]
 
 [package.source]
 type = "git"
-url = "https://github.com/Rapptz/discord.py"
-reference = "9012c42"
-resolved_reference = "9012c424bf12f237003522b4387b485e35411a4c"
+url = "https://github.com/Rapptz/discord.py.git"
+reference = "e515378"
+resolved_reference = "e515378076c64c5ab2f3a06237f2362ac8556290"
 
 [[package]]
 name = "frozenlist"
@@ -262,7 +262,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "36875dbbe19bd98de58b7501f8d2562be02dc5c7cb10497095018b19742dd7c1"
+content-hash = "edf501fdc890141d0f374848b724fadd0d9831239485841069417b55c086b47c"
 
 [metadata.files]
 aiohttp = [
