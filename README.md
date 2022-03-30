@@ -1,5 +1,4 @@
-# Audiophage
-*a Discord microphone bot*
+# Audiophage <sub>*a Discord microphone bot*</sub>
 
 ![Python 3.10](https://img.shields.io/badge/python-3.10-4584b6 "Python 3.10")
 ![discord.py @ e515378](https://img.shields.io/badge/discord.py-e515378-99aab5 "discord.py e515378")
