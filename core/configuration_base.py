@@ -1,7 +1,3 @@
-"""
-Handles entire configuration for the ZZRS Video Service project. Uses toml configuration files (with tomli).
-"""
-
 import os.path
 from pathlib import Path
 from typing import Any, Optional, Mapping, List
